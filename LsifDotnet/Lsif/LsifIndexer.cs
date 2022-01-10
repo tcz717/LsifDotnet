@@ -28,9 +28,11 @@ public class LsifIndexer
     protected Dictionary<ISymbol, CachedSymbolResult> VisitedSymbols { get; } =
         new(SymbolEqualityComparer.Default);
 
-    protected record CachedSymbolResult(int ResultSetId, int? ReferenceResultId, List<SymbolRef> ReferenceVs)
+    protected record CachedSymbolResult(int ResultSetId, int? DefinitionResultId, int? ReferenceResultId,
+        List<SymbolRef> ReferenceVs)
     {
         public int? ReferenceResultId { get; set; } = ReferenceResultId;
+        public int? DefinitionResultId { get; set; } = DefinitionResultId;
     }
 
     protected readonly record struct SymbolRef(int RangeId, bool IsDefinition);
@@ -44,7 +46,7 @@ public class LsifIndexer
         {
             var projectId = NextId();
             var documents = new List<int>();
-            yield return new ProjectVertex(projectId, new Uri(project.FilePath!).AbsoluteUri);
+            yield return new ProjectVertex(projectId, new Uri(project.FilePath!).AbsoluteUri, project.Name);
 
             if (project.Language != "C#")
             {
@@ -70,7 +72,6 @@ public class LsifIndexer
                 {
                     var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, token.SpanStart);
                     var location = token.GetLocation();
-                    var isDefinition = symbol.Locations.Any(defLocation => defLocation.Equals(location));
 
                     if (!location.IsInSource)
                     {
@@ -90,14 +91,15 @@ public class LsifIndexer
                     ranges.Add(rangeVertex.Id);
                     yield return rangeVertex;
 
+                    var isDefinition = symbol.Locations.Any(defLocation => defLocation.Equals(location));
                     if (VisitedSymbols.TryGetValue(symbol, out var cachedSymbolResult))
                     {
-                        cachedSymbolResult.ReferenceVs.Add(new SymbolRef(rangeVertex.Id, false));
+                        cachedSymbolResult.ReferenceVs.Add(new SymbolRef(rangeVertex.Id, isDefinition));
                         yield return SingleEdge.NextEdge(NextId(), rangeVertex.Id, cachedSymbolResult.ResultSetId);
                         continue;
                     }
 
-                    var resultSetVertex = new ResultSetVertex(NextId());
+                    var resultSetVertex = SimpleVertex.ResultSet(NextId());
                     yield return resultSetVertex;
                     yield return SingleEdge.NextEdge(NextId(), rangeVertex, resultSetVertex);
 
@@ -117,12 +119,13 @@ public class LsifIndexer
                     VisitedSymbols.Add(symbol, new CachedSymbolResult(
                         resultSetVertex.Id,
                         null,
+                        null,
                         new List<SymbolRef> { new(rangeVertex.Id, isDefinition) }));
                 }
 
                 yield return MultipleEdge.ContainsEdge(NextId(), documentId, ranges);
 
-                foreach (var p in EmitReferences(documentId)) yield return p;
+                foreach (var lsifItem in EmitReferences(documentId)) yield return lsifItem;
             }
 
             yield return MultipleEdge.ContainsEdge(NextId(), projectId, documents);
@@ -132,11 +135,11 @@ public class LsifIndexer
     private IEnumerable<LsifItem> EmitReferences(int documentId)
     {
         foreach (var cachedSymbolResult in VisitedSymbols.Values.Where(cachedSymbolResult =>
-                     cachedSymbolResult.ReferenceVs.Count != 0))
+                     cachedSymbolResult.ReferenceVs.Any()))
         {
             if (cachedSymbolResult.ReferenceResultId == null)
             {
-                var referenceResultVertex = new ReferenceResultVertex(NextId());
+                var referenceResultVertex = SimpleVertex.ReferenceResult(NextId());
                 yield return referenceResultVertex;
                 yield return SingleEdge.ReferenceEdge(NextId(), cachedSymbolResult.ResultSetId,
                     referenceResultVertex.Id);
@@ -148,6 +151,16 @@ public class LsifIndexer
                 .ToList();
             if (defVs.Any())
             {
+                if (cachedSymbolResult.DefinitionResultId == null)
+                {
+                    var definitionResultVertex = SimpleVertex.DefinitionResult(NextId());
+                    yield return definitionResultVertex;
+                    yield return SingleEdge.DefinitionEdge(NextId(), cachedSymbolResult.ResultSetId,
+                        definitionResultVertex.Id);
+                    cachedSymbolResult.DefinitionResultId = definitionResultVertex.Id;
+                }
+
+                yield return new ItemEdge(NextId(), cachedSymbolResult.DefinitionResultId.Value, defVs, documentId);
                 yield return ItemEdge.DefinitionItemEdge(
                     NextId(), cachedSymbolResult.ReferenceResultId.Value, defVs, documentId);
             }

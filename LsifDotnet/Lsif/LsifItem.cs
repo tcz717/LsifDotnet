@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis;
@@ -25,8 +26,10 @@ public abstract class LsifItem
     public const string ResultSetLabel = "resultSet";
     public const string HoverResultLabel = "hoverResult";
     public const string ReferenceResultLabel = "referenceResult";
+    public const string DefinitionResultLabel = "definitionResult";
     public const string HoverRequestLabel = "textDocument/hover";
     public const string ReferencesRequestLabel = "textDocument/references";
+    public const string DefinitionsRequestLabel = "textDocument/definition";
     public const string NextLabel = "next";
     public const string ItemLabel = "item";
     public const string ContainsLabel = "contains";
@@ -86,6 +89,11 @@ class SingleEdge : LsifItem
     {
         return new SingleEdge(id, ReferencesRequestLabel, outV, inV);
     }
+
+    public static LsifItem DefinitionEdge(int id, int outV, int inV)
+    {
+        return new SingleEdge(id, DefinitionsRequestLabel, outV, inV);
+    }
 }
 
 internal class MultipleEdge : LsifItem
@@ -130,17 +138,25 @@ class ItemEdge : MultipleEdge
     }
 }
 
-class ResultSetVertex : LsifItem
+class SimpleVertex : LsifItem
 {
-    public ResultSetVertex(int id) : base(id, LsifItemType.Vertex, ResultSetLabel)
+    public SimpleVertex(int id, string label) : base(id, LsifItemType.Vertex, label)
     {
     }
-}
 
-class ReferenceResultVertex : LsifItem
-{
-    public ReferenceResultVertex(int id) : base(id, LsifItemType.Vertex, ReferenceResultLabel)
+    public static SimpleVertex ResultSet(int id)
     {
+        return new SimpleVertex(id, ResultSetLabel);
+    }
+
+    public static SimpleVertex ReferenceResult(int id)
+    {
+        return new SimpleVertex(id, ReferenceResultLabel);
+    }
+
+    public static SimpleVertex DefinitionResult(int id)
+    {
+        return new SimpleVertex(id, DefinitionResultLabel);
     }
 }
 
@@ -149,9 +165,11 @@ class MetaDataVertex : LsifItem
     public const string LsifVersion = "0.4.0";
 
     public static readonly ToolInfoRecord LsifDotnetToolInfo =
-        new(Assembly.GetExecutingAssembly().GetName().Name!, Assembly.GetExecutingAssembly().GetName().Version?.ToString());
+        new(Assembly.GetExecutingAssembly().GetName().Name!,
+            Assembly.GetExecutingAssembly().GetName().Version?.ToString());
 
     public string Version { get; set; }
+    public string PositionEncoding => Encoding.Unicode.WebName;
     public string ProjectRoot { get; set; }
     public ToolInfoRecord ToolInfo { get; set; }
 
@@ -175,11 +193,13 @@ class ProjectVertex : LsifItem
 {
     public string Resource { get; set; }
     public string Kind { get; set; }
+    public string Name { get; set; }
 
-    public ProjectVertex(int id, string uri, string languageId = CSharpLanguageId)
+    public ProjectVertex(int id, string uri, string name, string languageId = CSharpLanguageId)
         : base(id, LsifItemType.Vertex, ProjectLabel)
     {
         Resource = uri;
+        Name = name;
         Kind = languageId;
     }
 }

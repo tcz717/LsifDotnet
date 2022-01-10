@@ -30,8 +30,8 @@ class Program
         MSBuildLocator.RegisterDefaults();
 
         var workspace = MSBuildWorkspace.Create();
-        // await workspace.OpenSolutionAsync(@"F:\Code\Science\LsifDotnet\LsifDotnet.sln");
-        await workspace.OpenSolutionAsync(@"F:\Code\Desktop\ConsoleApplication8\ConsoleApplication8.sln");
+        await workspace.OpenSolutionAsync(@"F:\Code\Science\LsifDotnet\LsifDotnet.sln");
+        // await workspace.OpenSolutionAsync(@"F:\Code\Desktop\ConsoleApplication8\ConsoleApplication8.sln");
 
         var indexer = new LsifIndexer(workspace);
 
@@ -70,9 +70,14 @@ class Program
     {
         var graph = new BidirectionalGraph<LsifItem, EquatableTaggedEdge<LsifItem, string>>();
         var vertexDict = new Dictionary<int, LsifItem>();
+
+        await using var writer = new StreamWriter(
+            Path.GetFileNameWithoutExtension(indexer.Workspace.CurrentSolution.FilePath ?? "out") + ".lsif");
         await foreach (var item in indexer.EmitLsif())
         {
-            Console.WriteLine(item.ToJson());
+            var json = item.ToJson();
+            Console.WriteLine(json);
+            await writer.WriteLineAsync(json);
 
             switch (item)
             {
