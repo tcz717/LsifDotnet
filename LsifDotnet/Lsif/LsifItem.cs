@@ -10,7 +10,7 @@ namespace LsifDotnet.Lsif;
 
 public abstract class LsifItem
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+    public static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
         Converters =
         {
@@ -33,6 +33,7 @@ public abstract class LsifItem
     public const string NextLabel = "next";
     public const string ItemLabel = "item";
     public const string ContainsLabel = "contains";
+    public const string MonikerLabel = "moniker";
 
     public const string CSharpLanguageId = "csharp";
 
@@ -93,6 +94,11 @@ class SingleEdge : LsifItem
     public static LsifItem DefinitionEdge(int id, int outV, int inV)
     {
         return new SingleEdge(id, DefinitionsRequestLabel, outV, inV);
+    }
+
+    public static LsifItem MonikerEdge(int id, int outV, int inV)
+    {
+        return new SingleEdge(id, MonikerLabel, outV, inV);
     }
 }
 
@@ -244,6 +250,26 @@ class RangeVertex : LsifItem
         : this(id, linePositionSpan.StartLinePosition, linePositionSpan.EndLinePosition)
     {
     }
+}
+
+class MonikerVertex : LsifItem
+{
+    public MonikerKind Kind { get; set; }
+    public string Scheme { get; set; }
+    public string Identifier { get; set; }
+
+    public MonikerVertex(int id, MonikerKind kind, string scheme, string identifier) : base(id, LsifItemType.Vertex, MonikerLabel)
+    {
+        Kind = kind;
+        Scheme = scheme;
+        Identifier = identifier;
+    }
+}
+
+public enum MonikerKind
+{
+    Export,
+    Import
 }
 
 public enum LsifItemType

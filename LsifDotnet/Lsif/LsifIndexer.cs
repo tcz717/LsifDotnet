@@ -29,7 +29,7 @@ public class LsifIndexer
         new(SymbolEqualityComparer.Default);
 
     protected record CachedSymbolResult(int ResultSetId, int? DefinitionResultId, int? ReferenceResultId,
-        List<SymbolRef> ReferenceVs)
+        List<SymbolRef>? ReferenceVs)
     {
         public int? ReferenceResultId { get; set; } = ReferenceResultId;
         public int? DefinitionResultId { get; set; } = DefinitionResultId;
@@ -94,7 +94,8 @@ public class LsifIndexer
                     var isDefinition = symbol.Locations.Any(defLocation => defLocation.Equals(location));
                     if (VisitedSymbols.TryGetValue(symbol, out var cachedSymbolResult))
                     {
-                        cachedSymbolResult.ReferenceVs.Add(new SymbolRef(rangeVertex.Id, isDefinition));
+                        // Connect existing result set
+                        cachedSymbolResult.ReferenceVs?.Add(new SymbolRef(rangeVertex.Id, isDefinition));
                         yield return SingleEdge.NextEdge(NextId(), rangeVertex.Id, cachedSymbolResult.ResultSetId);
                         continue;
                     }
@@ -103,6 +104,7 @@ public class LsifIndexer
                     yield return resultSetVertex;
                     yield return SingleEdge.NextEdge(NextId(), rangeVertex, resultSetVertex);
 
+                    // Get hover info
                     var quickInfo = await quickInfoService.GetQuickInfoAsync(document,
                         token.SpanStart);
                     Debug.Assert(quickInfo != null, nameof(quickInfo) + " != null");
@@ -112,15 +114,30 @@ public class LsifIndexer
                     yield return hoverResultVertex;
                     yield return SingleEdge.HoverEdge(NextId(), resultSetVertex, hoverResultVertex);
 
-                    // Skip namespace and extern metadata symbol reference
-                    if (symbol.Kind == SymbolKind.Namespace ||
-                        symbol.Locations.FirstOrDefault()?.IsInMetadata == true) continue;
+                    var shouldImport = ShouldImport(symbol);
+                    if (shouldImport)
+                    {
+                        // Emit import info
+                        foreach (var item in EmitImportSymbol(symbol, resultSetVertex)) yield return item;
+                    }
+                    else if (ShouldExport(symbol))
+                    {
+                        // Emit export info
+                        foreach (var item in EmitExportSymbol(symbol, resultSetVertex)) yield return item;
+                    }
+
+                    List<SymbolRef>? referenceVs = null;
+                    // Skip reference for namespace and extern metadata symbol 
+                    if (symbol.Kind != SymbolKind.Namespace && !shouldImport)
+                    {
+                        referenceVs = new List<SymbolRef> { new(rangeVertex.Id, isDefinition) };
+                    }
 
                     VisitedSymbols.Add(symbol, new CachedSymbolResult(
                         resultSetVertex.Id,
                         null,
                         null,
-                        new List<SymbolRef> { new(rangeVertex.Id, isDefinition) }));
+                        referenceVs));
                 }
 
                 yield return MultipleEdge.ContainsEdge(NextId(), documentId, ranges);
@@ -132,11 +149,41 @@ public class LsifIndexer
         }
     }
 
+    private IEnumerable<LsifItem> EmitImportSymbol(ISymbol symbol, SimpleVertex resultSetVertex)
+    {
+        var monikerVertex = new MonikerVertex(NextId(), MonikerKind.Import, "csharp",
+            symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+        yield return monikerVertex;
+        yield return SingleEdge.MonikerEdge(NextId(), resultSetVertex.Id, monikerVertex.Id);
+    }
+
+    private IEnumerable<LsifItem> EmitExportSymbol(ISymbol symbol, SimpleVertex resultSetVertex)
+    {
+        // TODO: decide scheme name and identity format
+        var monikerVertex = new MonikerVertex(NextId(), MonikerKind.Export, "csharp",
+            symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+        yield return monikerVertex;
+        yield return SingleEdge.MonikerEdge(NextId(), resultSetVertex.Id, monikerVertex.Id);
+    }
+
+    private static bool ShouldImport(ISymbol symbol)
+    {
+        return symbol.Locations.Any(loc => loc.IsInMetadata);
+    }
+
+    private static bool ShouldExport(ISymbol symbol)
+    {
+        var isInSource = symbol.Locations.Any(loc => loc.IsInSource);
+        return symbol.DeclaredAccessibility == Accessibility.Public && symbol.Kind != SymbolKind.Local && isInSource;
+    }
+
     private IEnumerable<LsifItem> EmitReferences(int documentId)
     {
         foreach (var cachedSymbolResult in VisitedSymbols.Values.Where(cachedSymbolResult =>
-                     cachedSymbolResult.ReferenceVs.Any()))
+                     cachedSymbolResult.ReferenceVs?.Any() == true))
         {
+            Debug.Assert(cachedSymbolResult.ReferenceVs != null, "cachedSymbolResult.ReferenceVs != null");
+
             if (cachedSymbolResult.ReferenceResultId == null)
             {
                 var referenceResultVertex = SimpleVertex.ReferenceResult(NextId());

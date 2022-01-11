@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.CommandLine;
+using System.CommandLine.NamingConventionBinder;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Threading.Tasks;
 using LsifDotnet.Lsif;
 using Microsoft.Build.Locator;
@@ -27,87 +28,65 @@ class Program
     /// <returns></returns>
     static async Task Main(string[] args)
     {
-        MSBuildLocator.RegisterDefaults();
+        var rootCommand = new RootCommand("An indexer that dumps lsif information from dotnet solution.")
+        {
+            new Argument<FileInfo>("Solution file.",
+                    "The solution to be indexed. Default is the only solution file in the current folder.")
+                { Arity = ArgumentArity.ZeroOrOne },
+            new Option<FileInfo>("--output", () => new FileInfo("dump.lsif"),
+                "The lsif dump output file."),
+            new Option<bool>("--dot", "Dump graphviz dot file."),
+            new Option<bool>("--svg", "Dump graph svg file."),
+        };
 
-        var workspace = MSBuildWorkspace.Create();
-        await workspace.OpenSolutionAsync(@"F:\Code\Science\LsifDotnet\LsifDotnet.sln");
-        // await workspace.OpenSolutionAsync(@"F:\Code\Desktop\ConsoleApplication8\ConsoleApplication8.sln");
+        rootCommand.Handler = CommandHandler.Create(
+            async (FileInfo? solutionFile, FileInfo output, bool dot, bool svg) =>
+            {
+                MSBuildLocator.RegisterDefaults();
 
-        var indexer = new LsifIndexer(workspace);
+                var workspace = MSBuildWorkspace.Create();
 
-        var graph = await BuildGraph(indexer);
+                var solutionFilePath = solutionFile?.FullName ?? FindSolutionFile();
 
-        await SaveResult(graph);
+                await workspace.OpenSolutionAsync(solutionFilePath);
 
-        Console.ReadLine();
+                var indexer = new LsifIndexer(workspace);
+
+                var items = indexer.EmitLsif();
+                var graphBuilder = new GraphBuilder();
+                if (dot || svg)
+                    items = graphBuilder.RecordLsifItem(items);
+                await SaveLsifDump(items, output.FullName);
+
+                if (dot)
+                    await graphBuilder.SaveDotAsync();
+
+                if (svg)
+                    await graphBuilder.SaveSvgAsync();
+            });
+        await rootCommand.InvokeAsync(args);
     }
 
-    private static async Task SaveResult(BidirectionalGraph<LsifItem, EquatableTaggedEdge<LsifItem, string>> graph)
+    private static string FindSolutionFile()
     {
-        var dot = graph.ToGraphviz(algorithm =>
+        var files = Directory.GetFiles(Directory.GetCurrentDirectory()).Where(file =>
+            string.Equals(Path.GetExtension(file), ".sln", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (files.Count != 1)
         {
-            algorithm.FormatVertex +=
-                (_, eventArgs) => eventArgs.VertexFormat.Label = eventArgs.Vertex.ToJson();
-            algorithm.FormatEdge += (_, eventArgs) =>
-                eventArgs.EdgeFormat.Label.Value = eventArgs.Edge.Tag;
-        });
-        await File.WriteAllTextAsync("lsif.dot", dot);
-        var client = new HttpClient();
-        var responseMessage = await client.PostAsJsonAsync("https://quickchart.io/graphviz", new { graph = dot });
-        if (responseMessage.IsSuccessStatusCode)
-        {
-            await File.WriteAllTextAsync("lsif.svg", await responseMessage.Content.ReadAsStringAsync());
-            Process.Start(new ProcessStartInfo("lsif.svg") { UseShellExecute = true });
+            throw new FileNotFoundException("Solution file not found or found more than one.");
         }
-        else
-        {
-            Console.WriteLine("Bad svg response");
-        }
+
+        return files.First();
     }
 
-    private static async Task<BidirectionalGraph<LsifItem, EquatableTaggedEdge<LsifItem, string>>> BuildGraph(
-        LsifIndexer indexer)
+    private static async Task SaveLsifDump(IAsyncEnumerable<LsifItem> items, string dumpPath)
     {
-        var graph = new BidirectionalGraph<LsifItem, EquatableTaggedEdge<LsifItem, string>>();
-        var vertexDict = new Dictionary<int, LsifItem>();
-
-        await using var writer = new StreamWriter(
-            Path.GetFileNameWithoutExtension(indexer.Workspace.CurrentSolution.FilePath ?? "out") + ".lsif");
-        await foreach (var item in indexer.EmitLsif())
+        await using var writer = new StreamWriter(dumpPath);
+        await foreach (var item in items)
         {
             var json = item.ToJson();
-            Console.WriteLine(json);
             await writer.WriteLineAsync(json);
-
-            switch (item)
-            {
-                case { Type: LsifItemType.Vertex }:
-                    graph.AddVertex(item);
-                    vertexDict.Add(item.Id, item);
-                    break;
-                case SingleEdge singleEdge:
-                    graph.AddEdge(new EquatableTaggedEdge<LsifItem, string>(
-                        vertexDict[singleEdge.OutV],
-                        vertexDict[singleEdge.InV],
-                        singleEdge.Label));
-                    break;
-                case ItemEdge itemEdge:
-                    graph.AddEdgeRange(itemEdge.InVs.Select(inV => new EquatableTaggedEdge<LsifItem, string>(
-                        vertexDict[itemEdge.OutV],
-                        vertexDict[inV],
-                        $"Item({itemEdge.Document}) {itemEdge.Property}")));
-                    break;
-                case MultipleEdge multipleEdge:
-                    graph.AddEdgeRange(multipleEdge.InVs.Select(inV => new EquatableTaggedEdge<LsifItem, string>(
-                        vertexDict[multipleEdge.OutV],
-                        vertexDict[inV],
-                        multipleEdge.Label)));
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
         }
-
-        return graph;
     }
 }
