@@ -121,6 +121,13 @@ public class IdentifierVisitor : CSharpSyntaxWalker
         base.VisitEventDeclaration(node);
     }
 
+    public override void VisitGenericName(GenericNameSyntax node)
+    {
+        Console.WriteLine($"Generic {node.Identifier}");
+        IdentifierList.Add(node.Identifier);
+        base.VisitGenericName(node);
+    }
+
     public override void VisitIdentifierName(IdentifierNameSyntax node)
     {
         Console.WriteLine($"Ident {node.Identifier}");
