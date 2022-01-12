@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Linq;
+using System.Threading.Tasks;
 using LsifDotnet.Roslyn;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -105,12 +106,8 @@ public class LsifIndexer
                     yield return SingleEdge.NextEdge(NextId(), rangeVertex, resultSetVertex);
 
                     // Get hover info
-                    var quickInfo = await quickInfoService.GetQuickInfoAsync(document,
-                        token.SpanStart);
-                    Debug.Assert(quickInfo != null, nameof(quickInfo) + " != null");
-
-                    var hoverResultVertex = new HoverResultVertex(NextId(),
-                        quickInfo.Sections.Select(section => section.Text).ToList());
+                    var contents = await GenerateHoverContent(quickInfoService, document, token);
+                    var hoverResultVertex = new HoverResultVertex(NextId(), contents);
                     yield return hoverResultVertex;
                     yield return SingleEdge.HoverEdge(NextId(), resultSetVertex, hoverResultVertex);
 
@@ -147,6 +144,74 @@ public class LsifIndexer
 
             yield return MultipleEdge.ContainsEdge(NextId(), projectId, documents);
         }
+    }
+
+
+    /// <summary>
+    /// Section kind for nullability analysis.
+    /// <para>
+    /// Based on https://github.com/dotnet/roslyn/blob/7dc32a952e77c96c31cae6a2ba6d253a558fc7ff/src/Features/LanguageServer/Protocol/Handler/Hover/HoverHandler.cs
+    /// These are internal tag values taken from https://github.com/dotnet/roslyn/blob/master/src/Features/Core/Portable/Common/TextTags.cs
+    /// </para>
+    /// <para>
+    /// They're copied here so that we can ensure we render blocks correctly in the markdown
+    /// https://github.com/dotnet/roslyn/issues/46254 tracks making these public
+    /// </para>
+    /// </summary>
+    internal const string NullabilityAnalysis = nameof(NullabilityAnalysis);
+
+    private static async Task<List<string>> GenerateHoverContent(QuickInfoService quickInfoService, Document document,
+        SyntaxToken token)
+    {
+        var quickInfo = await quickInfoService.GetQuickInfoAsync(document, token.SpanStart);
+        Debug.Assert(quickInfo != null, nameof(quickInfo) + " != null");
+
+        var contents = new List<string>();
+
+        var description = quickInfo.Sections.FirstOrDefault(s => s.Kind == QuickInfoSectionKinds.Description);
+        if (description != null)
+        {
+            contents.Add(MarkdownHelper.TaggedTextToMarkdown(description.TaggedParts, MarkdownFormat.AllTextAsCSharp));
+        }
+
+        var summary = quickInfo.Sections.FirstOrDefault(s => s.Kind == QuickInfoSectionKinds.DocumentationComments);
+        if (summary != null)
+        {
+            contents.Add(MarkdownHelper.TaggedTextToMarkdown(summary.TaggedParts, MarkdownFormat.Default));
+        }
+
+        foreach (var section in quickInfo.Sections)
+        {
+            switch (section.Kind)
+            {
+                case QuickInfoSectionKinds.Description:
+                case QuickInfoSectionKinds.DocumentationComments:
+                    continue;
+
+                case QuickInfoSectionKinds.TypeParameters:
+                    contents.Add(MarkdownHelper.TaggedTextToMarkdown(section.TaggedParts,
+                        MarkdownFormat.AllTextAsCSharp));
+                    break;
+
+                case QuickInfoSectionKinds.AnonymousTypes:
+                    // The first line is "Anonymous Types:"
+                    // Then we want all anonymous types to be C# highlighted
+                    contents.Add(MarkdownHelper.TaggedTextToMarkdown(section.TaggedParts,
+                        MarkdownFormat.FirstLineDefaultRestCSharp));
+                    break;
+
+                case NullabilityAnalysis:
+                    // Italicize the nullable analysis for emphasis.
+                    contents.Add(MarkdownHelper.TaggedTextToMarkdown(section.TaggedParts, MarkdownFormat.Italicize));
+                    break;
+
+                default:
+                    contents.Add(MarkdownHelper.TaggedTextToMarkdown(section.TaggedParts, MarkdownFormat.Default));
+                    break;
+            }
+        }
+
+        return contents;
     }
 
     private IEnumerable<LsifItem> EmitImportSymbol(ISymbol symbol, SimpleVertex resultSetVertex)
