@@ -1,6 +1,7 @@
 name: .NET Release
 
 on:
+  workflow_dispatch:
   push:
     # Sequence of patterns matched against refs/tags
     tags:
@@ -8,7 +9,10 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [win, linux, osx]
 
     steps:
     - name: Get Version
@@ -26,7 +30,7 @@ jobs:
     - name: Test
       run: dotnet test --no-build --verbosity normal
     - name: Publish
-      run: dotnet publish -c release -o publish -p:Version=${{ steps.get_version.outputs.version-without-v }} --verbosity normal
+      run: dotnet publish -c release -o publish --os ${{ matrix.os }} -p:Version=${{ steps.get_version.outputs.version-without-v }} --verbosity normal
     - name: Github Release
       # You may pin to the exact commit or the version.
       # uses: elgohr/Github-Release-Action@ed9ebd01a0c57e64e948e7f2ff59c0159e52c204
