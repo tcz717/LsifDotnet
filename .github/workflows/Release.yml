@@ -39,7 +39,7 @@ jobs:
         # Filename for archive
         filename: lsif-dotnet-${{ matrix.os }}-${{ steps.get_version.outputs.version-without-v }}.zip
         # Base path for archive files
-        path: publish/${{ matrix.os }}/
+        path: ${{ matrix.os }}/*
         # Working directory before zipping
         directory: publish/
     - name: GH Release
