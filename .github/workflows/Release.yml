@@ -30,10 +30,10 @@ jobs:
     - name: Test
       run: dotnet test --no-build --verbosity normal
     - name: Publish
-      run: dotnet publish -c release -o publish --os ${{ matrix.os }} -p:Version=${{ steps.get_version.outputs.version-without-v }} --verbosity normal
+      run: dotnet publish -c release -o publish/${{ matrix.os }} --os ${{ matrix.os }} -p:Version=${{ steps.get_version.outputs.version-without-v }} --verbosity normal
     - name: GH Release
       # You may pin to the exact commit or the version.
       # uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
       uses: softprops/action-gh-release@v0.1.14
       with:
-        files: publish/**
+        files: publish/${{ matrix.os }}/**
