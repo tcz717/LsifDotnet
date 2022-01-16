@@ -9,6 +9,8 @@ jobs:
     container: ghcr.io/tcz717/lsifdotnet:main
     steps:
       - uses: actions/checkout@v2.4.0
+      - name: Restore dependencies
+        run: dotnet restore
       - name: Generate LSIF data
         run: /app/lsif-dotnet
       - name: Upload LSIF data
