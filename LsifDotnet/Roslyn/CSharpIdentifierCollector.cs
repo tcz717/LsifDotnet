@@ -3,16 +3,24 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Logging;
 
 namespace LsifDotnet.Roslyn;
 
-public class CSharpIdentifierVisitor : CSharpSyntaxWalker
+public class CSharpIdentifierCollector : CSharpSyntaxWalker
 {
+    public ILogger<CSharpIdentifierCollector> Logger { get; }
+
+    public CSharpIdentifierCollector(ILogger<CSharpIdentifierCollector> logger)
+    {
+        Logger = logger;
+    }
+
     public List<SyntaxToken> IdentifierList { get; set; } = new();
 
     public override void VisitClassDeclaration(ClassDeclarationSyntax node)
     {
-        Console.WriteLine($"Class {node.Identifier}");
+        Logger.LogTrace($"Class {node.Identifier}");
         IdentifierList.Add(node.Identifier);
 
         base.VisitClassDeclaration(node);
@@ -20,7 +28,7 @@ public class CSharpIdentifierVisitor : CSharpSyntaxWalker
 
     public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
-        Console.WriteLine($"Method {node.Identifier}");
+        Logger.LogTrace($"Method {node.Identifier}");
         IdentifierList.Add(node.Identifier);
 
         base.VisitMethodDeclaration(node);
@@ -28,7 +36,7 @@ public class CSharpIdentifierVisitor : CSharpSyntaxWalker
 
     public override void VisitVariableDeclarator(VariableDeclaratorSyntax node)
     {
-        Console.WriteLine($"Variable {node.Identifier}");
+        Logger.LogTrace($"Variable {node.Identifier}");
         IdentifierList.Add(node.Identifier);
 
         base.VisitVariableDeclarator(node);
@@ -36,7 +44,7 @@ public class CSharpIdentifierVisitor : CSharpSyntaxWalker
 
     public override void VisitConstructorDeclaration(ConstructorDeclarationSyntax node)
     {
-        Console.WriteLine($"Ctor {node.Identifier}");
+        Logger.LogTrace($"Ctor {node.Identifier}");
         IdentifierList.Add(node.Identifier);
 
         base.VisitConstructorDeclaration(node);
@@ -44,7 +52,7 @@ public class CSharpIdentifierVisitor : CSharpSyntaxWalker
 
     public override void VisitSingleVariableDesignation(SingleVariableDesignationSyntax node)
     {
-        Console.WriteLine($"Single Var Designation {node.Identifier}");
+        Logger.LogTrace($"Single Var Designation {node.Identifier}");
         IdentifierList.Add(node.Identifier);
 
         base.VisitSingleVariableDesignation(node);
@@ -52,85 +60,85 @@ public class CSharpIdentifierVisitor : CSharpSyntaxWalker
 
     public override void VisitParameter(ParameterSyntax node)
     {
-        Console.WriteLine($"Parameter {node.Identifier}");
+        Logger.LogTrace($"Parameter {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitParameter(node);
     }
 
     public override void VisitStructDeclaration(StructDeclarationSyntax node)
     {
-        Console.WriteLine($"Struct {node.Identifier}");
+        Logger.LogTrace($"Struct {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitStructDeclaration(node);
     }
 
     public override void VisitInterfaceDeclaration(InterfaceDeclarationSyntax node)
     {
-        Console.WriteLine($"Interface {node.Identifier}");
+        Logger.LogTrace($"Interface {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitInterfaceDeclaration(node);
     }
 
     public override void VisitRecordDeclaration(RecordDeclarationSyntax node)
     {
-        Console.WriteLine($"Record {node.Identifier}");
+        Logger.LogTrace($"Record {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitRecordDeclaration(node);
     }
 
     public override void VisitEnumDeclaration(EnumDeclarationSyntax node)
     {
-        Console.WriteLine($"Enum {node.Identifier}");
+        Logger.LogTrace($"Enum {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitEnumDeclaration(node);
     }
 
     public override void VisitDelegateDeclaration(DelegateDeclarationSyntax node)
     {
-        Console.WriteLine($"Delegate {node.Identifier}");
+        Logger.LogTrace($"Delegate {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitDelegateDeclaration(node);
     }
 
     public override void VisitEnumMemberDeclaration(EnumMemberDeclarationSyntax node)
     {
-        Console.WriteLine($"EnumMember {node.Identifier}");
+        Logger.LogTrace($"EnumMember {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitEnumMemberDeclaration(node);
     }
-    
+
 
     public override void VisitDestructorDeclaration(DestructorDeclarationSyntax node)
     {
-        Console.WriteLine($"Destructor {node.Identifier}");
+        Logger.LogTrace($"Destructor {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitDestructorDeclaration(node);
     }
 
     public override void VisitPropertyDeclaration(PropertyDeclarationSyntax node)
     {
-        Console.WriteLine($"Property {node.Identifier}");
+        Logger.LogTrace($"Property {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitPropertyDeclaration(node);
     }
 
     public override void VisitEventDeclaration(EventDeclarationSyntax node)
     {
-        Console.WriteLine($"Event {node.Identifier}");
+        Logger.LogTrace($"Event {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitEventDeclaration(node);
     }
 
     public override void VisitGenericName(GenericNameSyntax node)
     {
-        Console.WriteLine($"Generic {node.Identifier}");
+        Logger.LogTrace($"Generic {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitGenericName(node);
     }
 
     public override void VisitIdentifierName(IdentifierNameSyntax node)
     {
-        Console.WriteLine($"Ident {node.Identifier}");
+        Logger.LogTrace($"Ident {node.Identifier}");
         IdentifierList.Add(node.Identifier);
         base.VisitIdentifierName(node);
     }

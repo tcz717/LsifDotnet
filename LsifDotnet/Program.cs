@@ -1,20 +1,37 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.CommandLine.Builder;
+using System.CommandLine.Hosting;
 using System.CommandLine.NamingConventionBinder;
+using System.CommandLine.Parsing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using LsifDotnet.Lsif;
+using LsifDotnet.Roslyn;
 using Microsoft.Build.Locator;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace LsifDotnet;
 
 class Program
 {
     static async Task Main(string[] args)
+    {
+        var builder = BuildCommandLine();
+        await builder.UseHost(_ => Host.CreateDefaultBuilder(), ConfigureHost)
+            .UseDefaults()
+            .Build()
+            .InvokeAsync(args);
+    }
+
+    private static CommandLineBuilder BuildCommandLine()
     {
         var rootCommand = new RootCommand("An indexer that dumps lsif information from dotnet solution.")
         {
@@ -30,24 +47,21 @@ class Program
         };
 
         rootCommand.Handler = CommandHandler.Create(
-            async (FileInfo? solutionFile, FileInfo output, CultureInfo culture, bool dot, bool svg) =>
+            async (IHost host, FileInfo? solutionFile, FileInfo output, CultureInfo culture, bool dot, bool svg) =>
             {
-                MSBuildLocator.RegisterDefaults();
-
-                var workspace = MSBuildWorkspace.Create();
-
                 var solutionFilePath = solutionFile?.FullName ?? FindSolutionFile();
 
-                await workspace.OpenSolutionAsync(solutionFilePath);
+                await host.Services.GetRequiredService<MSBuildWorkspace>().OpenSolutionAsync(solutionFilePath);
+                var indexer = host.Services.GetRequiredService<LsifIndexer>();
 
                 CultureInfo.CurrentUICulture = culture;
-                var indexer = new LsifIndexer(workspace);
 
                 var items = indexer.EmitLsif();
                 var graphBuilder = new GraphBuilder();
                 if (dot || svg)
                     items = graphBuilder.RecordLsifItem(items);
                 await SaveLsifDump(items, output.FullName);
+
                 CultureInfo.CurrentUICulture = CultureInfo.DefaultThreadCurrentUICulture ?? culture;
 
                 if (dot)
@@ -56,7 +70,27 @@ class Program
                 if (svg)
                     await graphBuilder.SaveSvgAsync();
             });
-        await rootCommand.InvokeAsync(args);
+
+        return new CommandLineBuilder(rootCommand);
+    }
+
+    private static void ConfigureHost(IHostBuilder host)
+    {
+        host.ConfigureLogging(builder =>
+            builder.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.None));
+
+        host.ConfigureServices((context, collection) => collection.AddSingleton(_ => CreateWorkspace())
+            .AddSingleton<IdentifierCollectorFactory>()
+            .AddTransient<LsifIndexer>()
+            .AddTransient(services => (Workspace)services.GetRequiredService<MSBuildWorkspace>()));
+    }
+
+    private static MSBuildWorkspace CreateWorkspace()
+    {
+        MSBuildLocator.RegisterDefaults();
+
+        var workspace = MSBuildWorkspace.Create();
+        return workspace;
     }
 
     private static string FindSolutionFile()

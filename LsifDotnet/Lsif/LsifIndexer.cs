@@ -9,6 +9,7 @@ using LsifDotnet.Roslyn;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.QuickInfo;
+using Microsoft.Extensions.Logging;
 
 namespace LsifDotnet.Lsif;
 
@@ -16,12 +17,17 @@ public class LsifIndexer
 {
     private int _emittedItem;
 
-    public LsifIndexer(Workspace workspace)
+    public LsifIndexer(Workspace workspace, IdentifierCollectorFactory identifierCollectorFactory,
+        ILogger<LsifIndexer> logger)
     {
         Workspace = workspace;
+        IdentifierCollectorFactory = identifierCollectorFactory;
+        Logger = logger;
     }
 
     public Workspace Workspace { get; }
+    public IdentifierCollectorFactory IdentifierCollectorFactory { get; }
+    public ILogger<LsifIndexer> Logger { get; }
 
     public int EmittedItem => _emittedItem;
 
@@ -51,7 +57,7 @@ public class LsifIndexer
 
             if (project.Language != "C#")
             {
-                Console.WriteLine($"Currently {project.Language} not supported");
+                Logger.LogWarning($"Currently {project.Language} not supported");
                 continue;
             }
 
@@ -64,9 +70,9 @@ public class LsifIndexer
 
                 var quickInfoService = QuickInfoService.GetService(document);
                 Debug.Assert(quickInfoService != null, nameof(quickInfoService) + " != null");
-                Console.WriteLine("Document {0}", document.Name);
+                Logger.LogTrace("Document {0}", document.Name);
 
-                var identifierVisitor = new CSharpIdentifierVisitor();
+                var identifierVisitor = IdentifierCollectorFactory.CreateInstance();
                 identifierVisitor.Visit(await document.GetSyntaxRootAsync());
 
                 foreach (var token in identifierVisitor.IdentifierList)
@@ -77,14 +83,18 @@ public class LsifIndexer
 
                     if (!location.IsInSource)
                     {
-                        Console.WriteLine($"Skipped non in source token {token.Value}");
+                        Logger.LogWarning($"Skipped non in source token {token.Value}");
                         continue;
                     }
 
                     // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                     if (symbol is null)
                     {
-                        Console.WriteLine($"Symbol not found {token.Value} at {linePositionSpan}");
+                        if (NotKnownIdentifier(token))
+                        {
+                            Logger.LogWarning($"Symbol not found {token.Value} at {linePositionSpan}");
+                        }
+
                         continue;
                     }
 
@@ -144,6 +154,11 @@ public class LsifIndexer
 
             yield return MultipleEdge.ContainsEdge(NextId(), projectId, documents);
         }
+    }
+
+    private static bool NotKnownIdentifier(SyntaxToken token)
+    {
+        return token.Text != "nameof";
     }
 
 
