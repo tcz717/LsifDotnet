@@ -1,3 +1,5 @@
+name: Generate LSIF and push to sourcegraph
+
 on:
   - push
 
