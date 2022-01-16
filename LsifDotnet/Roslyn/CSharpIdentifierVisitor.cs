@@ -6,9 +6,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace LsifDotnet.Roslyn;
 
-public class IdentifierVisitor : CSharpSyntaxWalker
+public class CSharpIdentifierVisitor : CSharpSyntaxWalker
 {
-    public List<SyntaxToken> IdentifierList { get; set; } = new List<SyntaxToken>();
+    public List<SyntaxToken> IdentifierList { get; set; } = new();
 
     public override void VisitClassDeclaration(ClassDeclarationSyntax node)
     {

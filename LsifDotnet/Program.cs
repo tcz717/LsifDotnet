@@ -2,31 +2,18 @@
 using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Json;
 using System.Threading.Tasks;
 using LsifDotnet.Lsif;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.MSBuild;
-using QuikGraph;
-using QuikGraph.Graphviz;
 
 namespace LsifDotnet;
 
-/// <summary>
-/// Test
-/// </summary>
 class Program
 {
-    /// <summary>
-    /// Test
-    /// </summary>
-    /// <param name="args"></param>
-    /// <returns></returns>
     static async Task Main(string[] args)
     {
         var rootCommand = new RootCommand("An indexer that dumps lsif information from dotnet solution.")
@@ -37,7 +24,7 @@ class Program
             new Option<FileInfo>("--output", () => new FileInfo("dump.lsif"),
                 "The lsif dump output file."),
             new Option<bool>("--dot", "Dump graphviz dot file."),
-            new Option<bool>("--svg", "Dump graph svg file."),
+            new Option<bool>("--svg", "Dump graph svg file. (by quickchart.io/graphviz API)"),
             new Option<CultureInfo>("--culture", () => CultureInfo.CurrentUICulture,
                 "The culture used to show hover info."),
         };

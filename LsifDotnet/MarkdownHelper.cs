@@ -30,12 +30,6 @@ public static class MarkdownHelper
     /// </summary>
     private const string ContainerEnd = nameof(ContainerEnd);
 
-    public static bool StartsWithNewline(this ImmutableArray<TaggedText> taggedParts)
-    {
-        return !taggedParts.IsDefaultOrEmpty
-               && taggedParts[0].Tag switch { TextTags.LineBreak => true, ContainerStart => true, _ => false };
-    }
-
     public static string TaggedTextToMarkdown(
         ImmutableArray<TaggedText> taggedParts,
         MarkdownFormat markdownFormat)

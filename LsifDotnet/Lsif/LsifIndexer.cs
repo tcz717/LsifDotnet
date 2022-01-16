@@ -66,13 +66,14 @@ public class LsifIndexer
                 Debug.Assert(quickInfoService != null, nameof(quickInfoService) + " != null");
                 Console.WriteLine("Document {0}", document.Name);
 
-                var identifierVisitor = new IdentifierVisitor();
+                var identifierVisitor = new CSharpIdentifierVisitor();
                 identifierVisitor.Visit(await document.GetSyntaxRootAsync());
 
                 foreach (var token in identifierVisitor.IdentifierList)
                 {
                     var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, token.SpanStart);
                     var location = token.GetLocation();
+                    var linePositionSpan = location.GetMappedLineSpan();
 
                     if (!location.IsInSource)
                     {
@@ -83,11 +84,10 @@ public class LsifIndexer
                     // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                     if (symbol is null)
                     {
-                        Console.WriteLine($"Symbol not found {token.Value}");
+                        Console.WriteLine($"Symbol not found {token.Value} at {linePositionSpan}");
                         continue;
                     }
 
-                    var linePositionSpan = location.GetMappedLineSpan();
                     var rangeVertex = new RangeVertex(NextId(), linePositionSpan);
                     ranges.Add(rangeVertex.Id);
                     yield return rangeVertex;

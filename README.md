@@ -2,7 +2,7 @@
 
 Visit https://lsif.dev/ to learn about LSIF.
 
-Example scenario:[Sourcegraph precise code intelligence](https://docs.sourcegraph.com/code_intelligence/explanations/precise_code_intelligence) ([lsif-dotnet repo](https://sourcegraph.com/github.com/tcz717/LsifDotnet/-/blob/LsifDotnet/Program.cs)
+Example scenario: [Sourcegraph precise code intelligence](https://docs.sourcegraph.com/code_intelligence/explanations/precise_code_intelligence) ([lsif-dotnet repo](https://sourcegraph.com/github.com/tcz717/LsifDotnet/-/blob/LsifDotnet/Program.cs))
 
 
 Only tested in win platform and don't support `VisualBasic` yet.
