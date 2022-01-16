@@ -1,0 +1,13 @@
+on:
+  - push
+
+jobs:
+  lsif-go:
+    runs-on: ubuntu-latest
+    container: ghcr.io/tcz717/lsifdotnet:main
+    steps:
+      - uses: actions/checkout@v2.4.0
+      - name: Generate LSIF data
+        run: /app/lsif-dotnet
+      - name: Upload LSIF data
+        run: src lsif upload -github-token=${{ secrets.GITHUB_TOKEN }}
