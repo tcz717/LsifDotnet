@@ -4,7 +4,7 @@ on:
   - push
 
 jobs:
-  lsif-go:
+  lsif-dotnet:
     runs-on: ubuntu-latest
     container: ghcr.io/tcz717/lsifdotnet:main
     steps:
