@@ -47,13 +47,13 @@ public class LsifIndexer
     public async IAsyncEnumerable<LsifItem> EmitLsif()
     {
         var solution = Workspace.CurrentSolution;
-        yield return new MetaDataVertex(NextId(), new Uri(Path.GetDirectoryName(solution.FilePath) ?? "").AbsoluteUri);
+        yield return new MetaDataVertex(NextId(), ToAbsoluteUri(solution.FilePath));
 
         foreach (var project in solution.Projects)
         {
             var projectId = NextId();
             var documents = new List<int>();
-            yield return new ProjectVertex(projectId, new Uri(project.FilePath!).AbsoluteUri, project.Name);
+            yield return new ProjectVertex(projectId, ToAbsoluteUri(project.FilePath), project.Name);
 
             if (project.Language != "C#")
             {
@@ -65,7 +65,7 @@ public class LsifIndexer
             {
                 var documentId = NextId();
                 var ranges = new List<int>();
-                yield return new DocumentVertex(documentId, new Uri(document.FilePath!).AbsoluteUri);
+                yield return new DocumentVertex(documentId, ToAbsoluteUri(document.FilePath));
                 documents.Add(documentId);
 
                 var quickInfoService = QuickInfoService.GetService(document);
@@ -154,6 +154,12 @@ public class LsifIndexer
 
             yield return MultipleEdge.ContainsEdge(NextId(), projectId, documents);
         }
+    }
+
+    private static string ToAbsoluteUri(string? filePath)
+    {
+        var directoryName = Path.GetDirectoryName(filePath);
+        return directoryName == null ? string.Empty : new Uri(directoryName).AbsoluteUri;
     }
 
     private static bool NotKnownIdentifier(SyntaxToken token)
