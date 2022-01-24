@@ -2,8 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Threading;
 using System.Linq;
+using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using LsifDotnet.Roslyn;
 using Microsoft.CodeAnalysis;
@@ -83,20 +84,11 @@ public class LsifIndexer
 
                     if (!location.IsInSource)
                     {
-                        Logger.LogWarning($"Skipped non in source token {token.Value}");
+                        Logger.LogWarning($"Skipped not-in-source token {token.Value}");
                         continue;
                     }
 
-                    // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                    if (symbol is null)
-                    {
-                        if (NotKnownIdentifier(token))
-                        {
-                            Logger.LogWarning($"Symbol not found {token.Value} at {linePositionSpan}");
-                        }
-
-                        continue;
-                    }
+                    if (SkipSymbol(symbol, token)) continue;
 
                     var rangeVertex = new RangeVertex(NextId(), linePositionSpan);
                     ranges.Add(rangeVertex.Id);
@@ -156,6 +148,32 @@ public class LsifIndexer
         }
     }
 
+    private bool SkipSymbol(ISymbol symbol, SyntaxToken token)
+    {
+        var linePositionSpan = token.GetLocation().GetMappedLineSpan();
+        switch (symbol)
+        {
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+            case null:
+            {
+                if (NotKnownIdentifier(token))
+                {
+                    Logger.LogWarning("Symbol not found {token.Value} at {linePositionSpan}", token.Value,
+                        linePositionSpan);
+                }
+
+                return true;
+            }
+            // Bug: AliasSymbol.Equals throw NullReferenceException when comparing two global symbols https://github.com/tcz717/LsifDotnet/issues/8
+            // Remove this case when it is fixed
+            case IAliasSymbol { Name: "global" }:
+                Logger.LogTrace("Skipped one global symbol at {linePositionSpan}", linePositionSpan);
+                return true;
+        }
+
+        return false;
+    }
+
     private static string ToAbsoluteUri(string? filePath)
     {
         var directoryName = Path.GetDirectoryName(filePath);
@@ -169,15 +187,17 @@ public class LsifIndexer
 
 
     /// <summary>
-    /// Section kind for nullability analysis.
-    /// <para>
-    /// Based on https://github.com/dotnet/roslyn/blob/7dc32a952e77c96c31cae6a2ba6d253a558fc7ff/src/Features/LanguageServer/Protocol/Handler/Hover/HoverHandler.cs
-    /// These are internal tag values taken from https://github.com/dotnet/roslyn/blob/master/src/Features/Core/Portable/Common/TextTags.cs
-    /// </para>
-    /// <para>
-    /// They're copied here so that we can ensure we render blocks correctly in the markdown
-    /// https://github.com/dotnet/roslyn/issues/46254 tracks making these public
-    /// </para>
+    ///     Section kind for nullability analysis.
+    ///     <para>
+    ///         Based on
+    ///         https://github.com/dotnet/roslyn/blob/7dc32a952e77c96c31cae6a2ba6d253a558fc7ff/src/Features/LanguageServer/Protocol/Handler/Hover/HoverHandler.cs
+    ///         These are internal tag values taken from
+    ///         https://github.com/dotnet/roslyn/blob/master/src/Features/Core/Portable/Common/TextTags.cs
+    ///     </para>
+    ///     <para>
+    ///         They're copied here so that we can ensure we render blocks correctly in the markdown
+    ///         https://github.com/dotnet/roslyn/issues/46254 tracks making these public
+    ///     </para>
     /// </summary>
     internal const string NullabilityAnalysis = nameof(NullabilityAnalysis);
 
