@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Threading;
+using System.Runtime.InteropServices.ComTypes;
 using System.Threading.Tasks;
 using LsifDotnet.Roslyn;
 using Microsoft.CodeAnalysis;
@@ -48,10 +47,14 @@ public class LsifIndexer
     public async IAsyncEnumerable<LsifItem> EmitLsif()
     {
         var solution = Workspace.CurrentSolution;
+        Logger.LogInformation("Emitting solution {solution}", solution.FilePath);
+        
         yield return new MetaDataVertex(NextId(), ToAbsoluteUri(Path.GetDirectoryName(solution.FilePath)));
 
         foreach (var project in solution.Projects)
         {
+            Logger.LogInformation("Emitting {language} project {project}", project.Language, project.FilePath);
+
             var projectId = NextId();
             var documents = new List<int>();
             yield return new ProjectVertex(projectId, ToAbsoluteUri(project.FilePath), project.Name);
@@ -64,6 +67,7 @@ public class LsifIndexer
 
             foreach (var document in project.Documents)
             {
+                Logger.LogInformation("Emitting {language} document {project}", document.SourceCodeKind, document.FilePath);
                 var documentId = NextId();
                 var ranges = new List<int>();
                 yield return new DocumentVertex(documentId, ToAbsoluteUri(document.FilePath));
@@ -125,13 +129,7 @@ public class LsifIndexer
                         foreach (var item in EmitExportSymbol(symbol, resultSetVertex)) yield return item;
                     }
 
-                    List<SymbolRef>? referenceVs = null;
-                    // Skip reference for namespace and extern metadata symbol 
-                    if (symbol.Kind != SymbolKind.Namespace && !shouldImport)
-                    {
-                        referenceVs = new List<SymbolRef> { new(rangeVertex.Id, isDefinition) };
-                    }
-
+                    var referenceVs = new List<SymbolRef> { new(rangeVertex.Id, isDefinition) };
                     VisitedSymbols.Add(symbol, new CachedSymbolResult(
                         resultSetVertex.Id,
                         null,
