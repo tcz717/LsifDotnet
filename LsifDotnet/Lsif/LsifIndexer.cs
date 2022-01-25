@@ -48,7 +48,7 @@ public class LsifIndexer
     public async IAsyncEnumerable<LsifItem> EmitLsif()
     {
         var solution = Workspace.CurrentSolution;
-        yield return new MetaDataVertex(NextId(), ToAbsoluteUri(solution.FilePath));
+        yield return new MetaDataVertex(NextId(), ToAbsoluteUri(Path.GetDirectoryName(solution.FilePath)));
 
         foreach (var project in solution.Projects)
         {
@@ -174,10 +174,9 @@ public class LsifIndexer
         return false;
     }
 
-    private static string ToAbsoluteUri(string? filePath)
+    private static string ToAbsoluteUri(string? path)
     {
-        var directoryName = Path.GetDirectoryName(filePath);
-        return directoryName == null ? string.Empty : new Uri(directoryName).AbsoluteUri;
+        return path == null ? string.Empty : new Uri(path).AbsoluteUri;
     }
 
     private static bool NotKnownIdentifier(SyntaxToken token)
