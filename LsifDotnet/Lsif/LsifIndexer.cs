@@ -13,6 +13,9 @@ using Microsoft.Extensions.Logging;
 
 namespace LsifDotnet.Lsif;
 
+/// <summary>
+/// The indexer to emit Lsif items from a roslyn workspace
+/// </summary>
 public class LsifIndexer
 {
     private int _emittedItem;
@@ -27,7 +30,7 @@ public class LsifIndexer
 
     public Workspace Workspace { get; }
     public IdentifierCollectorFactory IdentifierCollectorFactory { get; }
-    public ILogger<LsifIndexer> Logger { get; }
+    protected ILogger<LsifIndexer> Logger { get; }
 
     public int EmittedItem => _emittedItem;
 
@@ -35,15 +38,37 @@ public class LsifIndexer
     protected Dictionary<ISymbol, CachedSymbolResult> VisitedSymbols { get; } =
         new(SymbolEqualityComparer.Default);
 
+    /// <summary>
+    /// The symbol cache representing a ResultSet shared with related <see cref="RangeVertex"/>
+    /// </summary>
+    /// <param name="ResultSetId">The ResultSet's Id</param>
+    /// <param name="DefinitionResultId">The DefinitionResult's Id</param>
+    /// <param name="ReferenceResultId">The ReferenceResult's Id</param>
+    /// <param name="ReferenceVs">All <see cref="RangeVertex"/>s referring the same symbol</param>
     protected record CachedSymbolResult(int ResultSetId, int? DefinitionResultId, int? ReferenceResultId,
         List<SymbolRef>? ReferenceVs)
     {
+        /// <summary>
+        /// The ReferenceResult's Id
+        /// </summary>
         public int? ReferenceResultId { get; set; } = ReferenceResultId;
+        /// <summary>
+        /// The DefinitionResult's Id
+        /// </summary>
         public int? DefinitionResultId { get; set; } = DefinitionResultId;
     }
 
+    /// <summary>
+    /// A <see cref="RangeVertex"/>s referring some symbol
+    /// </summary>
+    /// <param name="RangeId">The Id of the <see cref="RangeVertex"/></param>
+    /// <param name="IsDefinition">true if this ref also the definition</param>
     protected readonly record struct SymbolRef(int RangeId, bool IsDefinition);
 
+    /// <summary>
+    /// Emit Lsif items as <see cref="IAsyncEnumerable&lt;LsifItem&gt;"/>
+    /// </summary>
+    /// <returns></returns>
     public async IAsyncEnumerable<LsifItem> EmitLsif()
     {
         var solution = Workspace.CurrentSolution;
