@@ -5,10 +5,10 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices.ComTypes;
 using System.Threading.Tasks;
 using LsifDotnet.Lsif;
 using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,16 +17,18 @@ namespace LsifDotnet;
 
 internal class IndexHandler
 {
-    public static async Task Process(IHost host, FileInfo solutionFile, FileInfo output, CultureInfo culture, bool dot, bool svg)
+    public static async Task Process(IHost host, FileInfo solutionFile, FileInfo output, CultureInfo culture, bool dot, bool svg, bool quiet)
     {
-        ConfigLoggingLevel(host);
-        PrintDescription(host);
+        var logger = host.Services.GetRequiredService<ILogger<IndexHandler>>();
+        ConfigLoggingLevel(host, quiet);
+        PrintDescription(logger);
 
         var solutionFilePath = solutionFile?.FullName ?? FindSolutionFile();
 
         await host.Services.GetRequiredService<MSBuildWorkspace>().OpenSolutionAsync(solutionFilePath);
         var indexer = host.Services.GetRequiredService<LsifIndexer>();
 
+        var stopwatch = Stopwatch.StartNew();
         var defaultCulture = CultureInfo.CurrentUICulture;
         CultureInfo.CurrentUICulture = culture;
 
@@ -35,22 +37,27 @@ internal class IndexHandler
         if (dot || svg) items = graphBuilder.RecordLsifItem(items);
         await SaveLsifDump(items, output.FullName);
 
+        stopwatch.Stop();
+        logger.LogInformation("Totally emitted {count} items in {time}", indexer.EmittedItem, stopwatch.Elapsed);
         CultureInfo.CurrentUICulture = defaultCulture;
+
 
         if (dot) await graphBuilder.SaveDotAsync();
 
         if (svg) await graphBuilder.SaveSvgAsync();
     }
 
-    private static void ConfigLoggingLevel(IHost host)
+    private static void ConfigLoggingLevel(IHost host, bool quiet)
     {
-        throw new NotImplementedException();
+        if (!quiet) return;
+
+        var root = host.Services.GetRequiredService<IConfiguration>();
+        root["Logging:LogLevel:Default"] = nameof(LogLevel.Error);
+        ((IConfigurationRoot)root).Reload();
     }
 
-    private static void PrintDescription(IHost host)
+    private static void PrintDescription(ILogger logger)
     {
-        var logger = host.Services.GetRequiredService<ILogger<IndexHandler>>();
-
         var isDebug = false;
 #if DEBUG
         isDebug = true;

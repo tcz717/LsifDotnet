@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
+using System.Threading;
 using System.Threading.Tasks;
 using LsifDotnet.Roslyn;
 using Microsoft.CodeAnalysis;
@@ -31,7 +31,7 @@ public class LsifIndexer
 
     public int EmittedItem => _emittedItem;
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1024:正确比较符号")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1024")]
     protected Dictionary<ISymbol, CachedSymbolResult> VisitedSymbols { get; } =
         new(SymbolEqualityComparer.Default);
 
@@ -67,83 +67,90 @@ public class LsifIndexer
 
             foreach (var document in project.Documents)
             {
-                Logger.LogInformation("Emitting {language} document {project}", document.SourceCodeKind, document.FilePath);
                 var documentId = NextId();
-                var ranges = new List<int>();
-                yield return new DocumentVertex(documentId, ToAbsoluteUri(document.FilePath));
                 documents.Add(documentId);
-
-                var quickInfoService = QuickInfoService.GetService(document);
-                Debug.Assert(quickInfoService != null, nameof(quickInfoService) + " != null");
-                Logger.LogTrace("Document {0}", document.Name);
-
-                var identifierVisitor = IdentifierCollectorFactory.CreateInstance();
-                identifierVisitor.Visit(await document.GetSyntaxRootAsync());
-
-                foreach (var token in identifierVisitor.IdentifierList)
-                {
-                    var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, token.SpanStart);
-                    var location = token.GetLocation();
-                    var linePositionSpan = location.GetMappedLineSpan();
-
-                    if (!location.IsInSource)
-                    {
-                        Logger.LogWarning($"Skipped not-in-source token {token.Value}");
-                        continue;
-                    }
-
-                    if (SkipSymbol(symbol, token)) continue;
-
-                    var rangeVertex = new RangeVertex(NextId(), linePositionSpan);
-                    ranges.Add(rangeVertex.Id);
-                    yield return rangeVertex;
-
-                    var isDefinition = symbol.Locations.Any(defLocation => defLocation.Equals(location));
-                    if (VisitedSymbols.TryGetValue(symbol, out var cachedSymbolResult))
-                    {
-                        // Connect existing result set
-                        cachedSymbolResult.ReferenceVs?.Add(new SymbolRef(rangeVertex.Id, isDefinition));
-                        yield return SingleEdge.NextEdge(NextId(), rangeVertex.Id, cachedSymbolResult.ResultSetId);
-                        continue;
-                    }
-
-                    var resultSetVertex = SimpleVertex.ResultSet(NextId());
-                    yield return resultSetVertex;
-                    yield return SingleEdge.NextEdge(NextId(), rangeVertex, resultSetVertex);
-
-                    // Get hover info
-                    var contents = await GenerateHoverContent(quickInfoService, document, token);
-                    var hoverResultVertex = new HoverResultVertex(NextId(), contents);
-                    yield return hoverResultVertex;
-                    yield return SingleEdge.HoverEdge(NextId(), resultSetVertex, hoverResultVertex);
-
-                    var shouldImport = ShouldImport(symbol);
-                    if (shouldImport)
-                    {
-                        // Emit import info
-                        foreach (var item in EmitImportSymbol(symbol, resultSetVertex)) yield return item;
-                    }
-                    else if (ShouldExport(symbol))
-                    {
-                        // Emit export info
-                        foreach (var item in EmitExportSymbol(symbol, resultSetVertex)) yield return item;
-                    }
-
-                    var referenceVs = new List<SymbolRef> { new(rangeVertex.Id, isDefinition) };
-                    VisitedSymbols.Add(symbol, new CachedSymbolResult(
-                        resultSetVertex.Id,
-                        null,
-                        null,
-                        referenceVs));
-                }
-
-                yield return MultipleEdge.ContainsEdge(NextId(), documentId, ranges);
-
-                foreach (var lsifItem in EmitReferences(documentId)) yield return lsifItem;
+                await foreach (var item in EmitDocument(documentId, document)) yield return item;
             }
 
             yield return MultipleEdge.ContainsEdge(NextId(), projectId, documents);
         }
+    }
+
+    private async IAsyncEnumerable<LsifItem> EmitDocument(int documentId, Document document)
+    {
+        var previousEmittedItem = EmittedItem;
+        Logger.LogInformation("Emitting {language} document {project}", document.SourceCodeKind, document.FilePath);
+        var ranges = new List<int>();
+        yield return new DocumentVertex(documentId, ToAbsoluteUri(document.FilePath));
+
+        var quickInfoService = QuickInfoService.GetService(document);
+        Debug.Assert(quickInfoService != null, nameof(quickInfoService) + " != null");
+
+        var identifierCollector = IdentifierCollectorFactory.CreateInstance();
+        identifierCollector.Visit(await document.GetSyntaxRootAsync());
+
+        foreach (var token in identifierCollector.IdentifierList)
+        {
+            var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, token.SpanStart);
+            var location = token.GetLocation();
+            var linePositionSpan = location.GetMappedLineSpan();
+
+            if (!location.IsInSource)
+            {
+                Logger.LogWarning($"Skipped not-in-source token {token.Value}");
+                continue;
+            }
+
+            if (SkipSymbol(symbol, token)) continue;
+
+            var rangeVertex = new RangeVertex(NextId(), linePositionSpan);
+            ranges.Add(rangeVertex.Id);
+            yield return rangeVertex;
+
+            var isDefinition = symbol.Locations.Any(defLocation => defLocation.Equals(location));
+            if (VisitedSymbols.TryGetValue(symbol, out var cachedSymbolResult))
+            {
+                // Connect existing result set
+                cachedSymbolResult.ReferenceVs?.Add(new SymbolRef(rangeVertex.Id, isDefinition));
+                yield return SingleEdge.NextEdge(NextId(), rangeVertex.Id, cachedSymbolResult.ResultSetId);
+                continue;
+            }
+
+            var resultSetVertex = SimpleVertex.ResultSet(NextId());
+            yield return resultSetVertex;
+            yield return SingleEdge.NextEdge(NextId(), rangeVertex, resultSetVertex);
+
+            // Get hover info
+            var contents = await GenerateHoverContent(quickInfoService, document, token);
+            var hoverResultVertex = new HoverResultVertex(NextId(), contents);
+            yield return hoverResultVertex;
+            yield return SingleEdge.HoverEdge(NextId(), resultSetVertex, hoverResultVertex);
+
+            var shouldImport = ShouldImport(symbol);
+            if (shouldImport)
+            {
+                // Emit import info
+                foreach (var item in EmitImportSymbol(symbol, resultSetVertex)) yield return item;
+            }
+            else if (ShouldExport(symbol))
+            {
+                // Emit export info
+                foreach (var item in EmitExportSymbol(symbol, resultSetVertex)) yield return item;
+            }
+
+            var referenceVs = new List<SymbolRef> { new(rangeVertex.Id, isDefinition) };
+            VisitedSymbols.Add(symbol, new CachedSymbolResult(
+                resultSetVertex.Id,
+                null,
+                null,
+                referenceVs));
+        }
+
+        yield return MultipleEdge.ContainsEdge(NextId(), documentId, ranges);
+
+        foreach (var lsifItem in EmitReferences(documentId)) yield return lsifItem;
+
+        Logger.LogInformation("Emitted {count} Lsif item(s) in {document}", EmittedItem - previousEmittedItem, document.FilePath);
     }
 
     private bool SkipSymbol(ISymbol symbol, SyntaxToken token)
