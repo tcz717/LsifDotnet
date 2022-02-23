@@ -48,6 +48,17 @@ class Program
         var quietOption = new Option<bool>("--quiet", "Be more quiet");
         quietOption.AddAlias("-q");
 
+        var legacyOption = new Option<bool>("--legacy", "Use the legacy indexer, relative slow but need less memory");
+        legacyOption.AddAlias("-l");
+
+        var parallelismOption = new Option<uint>("--parallelism", () => 4,
+            "How many hover content generation tasks can be handled at the same time.");
+        parallelismOption.AddAlias("-p");
+
+        var startIndexOption = new Option<uint>("--index",
+            "The start index of lsif items. Use a different file when concatenating other lsif files.");
+        startIndexOption.AddAlias("-i");
+
         var rootCommand = new RootCommand("An indexer that dumps lsif information from dotnet solution.")
         {
             new Argument<FileInfo>("SolutionFile",
@@ -58,6 +69,9 @@ class Program
             svgOption,
             cultureOption,
             quietOption,
+            legacyOption,
+            parallelismOption,
+            startIndexOption
         };
 
         rootCommand.Handler = CommandHandler.Create(IndexHandler.Process);
@@ -72,9 +86,10 @@ class Program
         host.ConfigureLogging(builder =>
             builder.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.None));
 
-        host.ConfigureServices((context, collection) => collection.AddSingleton(_ => CreateWorkspace())
+        host.ConfigureServices((_, collection) => collection.AddSingleton(_ => CreateWorkspace())
             .AddSingleton<IdentifierCollectorFactory>()
-            .AddTransient<LsifIndexer>()
+            .AddTransient<LegacyLsifIndexer>()
+            .AddTransient<DataFlowLsifIndexer>()
             .AddTransient(services => (Workspace)services.GetRequiredService<MSBuildWorkspace>()));
     }
 

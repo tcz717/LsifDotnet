@@ -1,8 +1,10 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
@@ -52,6 +54,11 @@ public abstract class LsifItem
     {
         return JsonSerializer.Serialize<object>(this, SerializerOptions);
     }
+
+    public Task ToJsonAsync(Stream stream)
+    {
+        return JsonSerializer.SerializeAsync<object>(stream, this, SerializerOptions);
+    }
 }
 
 class SingleEdge : LsifItem
@@ -82,6 +89,10 @@ class SingleEdge : LsifItem
     }
 
     public static SingleEdge HoverEdge(int id, LsifItem outV, LsifItem inV)
+    {
+        return new SingleEdge(id, HoverRequestLabel, outV, inV);
+    }
+    public static LsifItem HoverEdge(int id, int outV, int inV)
     {
         return new SingleEdge(id, HoverRequestLabel, outV, inV);
     }

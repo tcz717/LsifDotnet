@@ -29,7 +29,7 @@ namespace LsifDotnet.Tests
             _serviceProvider = new ServiceCollection()
                 .AddLogging()
                 .AddTransient<IdentifierCollectorFactory>()
-                .AddTransient<LsifIndexer>()
+                .AddTransient<LegacyLsifIndexer>()
                 .AddSingleton(_adhocWorkspace as Workspace)
                 .BuildServiceProvider();
         }
@@ -58,7 +58,7 @@ using System.Reflection;
             _adhocWorkspace.AddDocument(_project.Id, $"{nameof(GlobalKeywordTest)}.1.cs", code1);
             _adhocWorkspace.AddDocument(AddProject("SecondProject").Id, $"{nameof(GlobalKeywordTest)}.2.cs", code2);
 
-            var indexer = _serviceProvider.GetRequiredService<LsifIndexer>();
+            var indexer = _serviceProvider.GetRequiredService<LegacyLsifIndexer>();
 
             await foreach (var item in indexer.EmitLsif())
             {

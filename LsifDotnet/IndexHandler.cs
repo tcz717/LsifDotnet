@@ -5,7 +5,9 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using LsifDotnet.Lsif;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Configuration;
@@ -15,9 +17,10 @@ using Microsoft.Extensions.Logging;
 
 namespace LsifDotnet;
 
-internal class IndexHandler
+public class IndexHandler
 {
-    public static async Task Process(IHost host, FileInfo solutionFile, FileInfo output, CultureInfo culture, bool dot, bool svg, bool quiet)
+    public static async Task Process(IHost host, FileInfo? solutionFile, FileInfo output, CultureInfo culture, bool dot,
+        bool svg, bool quiet, bool legacy, uint parallelism, uint index)
     {
         var logger = host.Services.GetRequiredService<ILogger<IndexHandler>>();
         ConfigLoggingLevel(host, quiet);
@@ -26,11 +29,68 @@ internal class IndexHandler
         var solutionFilePath = solutionFile?.FullName ?? FindSolutionFile();
 
         await host.Services.GetRequiredService<MSBuildWorkspace>().OpenSolutionAsync(solutionFilePath);
-        var indexer = host.Services.GetRequiredService<LsifIndexer>();
 
-        var stopwatch = Stopwatch.StartNew();
         var defaultCulture = CultureInfo.CurrentUICulture;
         CultureInfo.CurrentUICulture = culture;
+
+        if (legacy)
+            await LegacyLsifIndex(host, logger, output, dot, svg);
+        else
+            await DataFlowLsifIndex(host, logger, output, dot, svg, parallelism, index);
+
+        CultureInfo.CurrentUICulture = defaultCulture;
+    }
+
+    private static async Task DataFlowLsifIndex(IHost host, ILogger logger, FileInfo output, bool dot,
+        bool svg, uint parallelism, uint initId)
+    {
+        logger.LogInformation($"Using {nameof(DataFlowLsifIndexer)}");
+        var indexer = host.Services.GetRequiredService<DataFlowLsifIndexer>();
+        var stopwatch = Stopwatch.StartNew();
+
+        var items = indexer.BuildLsifEmitGraph((int)parallelism, (int)initId);
+
+        var writer = output.Create();
+        var count = 0;
+        var saveLsifBlock = new ActionBlock<LsifItem>(async item =>
+        {
+            await item.ToJsonAsync(writer);
+            writer.WriteByte((byte)'\n');
+            Interlocked.Increment(ref count);
+        });
+        var completion = saveLsifBlock.Completion;
+
+        var graphBuilder = new GraphBuilder();
+        if (dot || svg)
+        {
+            var graphBuildBlock = graphBuilder.BuildDataFlowBlock();
+            items.LinkTo(graphBuildBlock);
+            completion = graphBuildBlock.Completion;
+        }
+
+        items.LinkTo(saveLsifBlock, new DataflowLinkOptions { PropagateCompletion = true });
+
+        var solution = host.Services.GetRequiredService<MSBuildWorkspace>().CurrentSolution;
+        await items.SendAsync(solution);
+        items.Complete();
+
+        await completion;
+        await writer.DisposeAsync();
+
+        stopwatch.Stop();
+        logger.LogInformation("Totally emitted {count} items in {time}", indexer.EmittedItem, stopwatch.Elapsed);
+
+        if (dot) await graphBuilder.SaveDotAsync();
+        if (svg) await graphBuilder.SaveSvgAsync();
+    }
+
+    private static async Task LegacyLsifIndex(IHost host, ILogger logger, FileInfo output, bool dot,
+        bool svg)
+    {
+        logger.LogInformation($"Using {nameof(LegacyLsifIndexer)}");
+        var indexer = host.Services.GetRequiredService<LegacyLsifIndexer>();
+
+        var stopwatch = Stopwatch.StartNew();
 
         var items = indexer.EmitLsif();
         var graphBuilder = new GraphBuilder();
@@ -39,11 +99,8 @@ internal class IndexHandler
 
         stopwatch.Stop();
         logger.LogInformation("Totally emitted {count} items in {time}", indexer.EmittedItem, stopwatch.Elapsed);
-        CultureInfo.CurrentUICulture = defaultCulture;
-
 
         if (dot) await graphBuilder.SaveDotAsync();
-
         if (svg) await graphBuilder.SaveSvgAsync();
     }
 

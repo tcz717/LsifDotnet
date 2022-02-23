@@ -16,12 +16,12 @@ namespace LsifDotnet.Lsif;
 /// <summary>
 /// The indexer to emit Lsif items from a roslyn workspace
 /// </summary>
-public class LsifIndexer
+public class LegacyLsifIndexer
 {
     private int _emittedItem;
 
-    public LsifIndexer(Workspace workspace, IdentifierCollectorFactory identifierCollectorFactory,
-        ILogger<LsifIndexer> logger)
+    public LegacyLsifIndexer(Workspace workspace, IdentifierCollectorFactory identifierCollectorFactory,
+        ILogger<LegacyLsifIndexer> logger)
     {
         Workspace = workspace;
         IdentifierCollectorFactory = identifierCollectorFactory;
@@ -30,7 +30,7 @@ public class LsifIndexer
 
     public Workspace Workspace { get; }
     public IdentifierCollectorFactory IdentifierCollectorFactory { get; }
-    protected ILogger<LsifIndexer> Logger { get; }
+    protected ILogger<LegacyLsifIndexer> Logger { get; }
 
     public int EmittedItem => _emittedItem;
 
