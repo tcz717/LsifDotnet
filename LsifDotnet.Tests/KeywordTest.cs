@@ -24,19 +24,19 @@ namespace LsifDotnet.Tests
 
         public KeywordTest()
         {
-            this._adhocWorkspace = new AdhocWorkspace();
-            this._project = AddProject(nameof(KeywordTest));
-            this._serviceProvider = new ServiceCollection()
+            _adhocWorkspace = new AdhocWorkspace();
+            _project = AddProject(nameof(KeywordTest));
+            _serviceProvider = new ServiceCollection()
                 .AddLogging()
                 .AddTransient<IdentifierCollectorFactory>()
-                .AddTransient<LsifIndexer>()
-                .AddSingleton(this._adhocWorkspace as Workspace)
+                .AddTransient<LegacyLsifIndexer>()
+                .AddSingleton(_adhocWorkspace as Workspace)
                 .BuildServiceProvider();
         }
 
         private Project AddProject(string projectName)
         {
-            return this._adhocWorkspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(),
+            return _adhocWorkspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(),
                 VersionStamp.Create(),
                 projectName, projectName, "C#", metadataReferences: new[]
                 {
@@ -55,10 +55,10 @@ using System.Reflection;
 
             var code2 = SourceText.From(@"class Test : global::System.object {} // Adding extra global symbol");
 
-            this._adhocWorkspace.AddDocument(this._project.Id, $"{nameof(this.GlobalKeywordTest)}.1.cs", code1);
-            this._adhocWorkspace.AddDocument(AddProject("SecondProject").Id, $"{nameof(this.GlobalKeywordTest)}.2.cs", code2);
+            _adhocWorkspace.AddDocument(_project.Id, $"{nameof(GlobalKeywordTest)}.1.cs", code1);
+            _adhocWorkspace.AddDocument(AddProject("SecondProject").Id, $"{nameof(GlobalKeywordTest)}.2.cs", code2);
 
-            var indexer = this._serviceProvider.GetRequiredService<LsifIndexer>();
+            var indexer = _serviceProvider.GetRequiredService<LegacyLsifIndexer>();
 
             await foreach (var item in indexer.EmitLsif())
             {
@@ -71,6 +71,7 @@ using System.Reflection;
         /// </summary>
         /// <returns></returns>
         [Fact]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1024")]
         public async Task RoslynAliasEqualBugTest()
         {
             {
@@ -82,9 +83,9 @@ using System.Reflection;
 
                 var code2 = SourceText.From(@"using global::System.IO; // Adding extra global symbol");
 
-                var doc1 = this._adhocWorkspace.AddDocument(this._project.Id, $"{nameof(this.GlobalKeywordTest)}.1.cs",
+                var doc1 = _adhocWorkspace.AddDocument(_project.Id, $"{nameof(GlobalKeywordTest)}.1.cs",
                     code1);
-                var doc2 = this._adhocWorkspace.AddDocument(this._project.Id, $"{nameof(this.GlobalKeywordTest)}.2.cs",
+                var doc2 = _adhocWorkspace.AddDocument(_project.Id, $"{nameof(GlobalKeywordTest)}.2.cs",
                     code2);
 
                 var globalSymbol1 = (await doc1.GetSemanticModelAsync())!

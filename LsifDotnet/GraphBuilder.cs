@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using LsifDotnet.Lsif;
 using QuikGraph;
 using QuikGraph.Graphviz;
@@ -46,6 +47,11 @@ public class GraphBuilder
             default:
                 throw new ArgumentOutOfRangeException(nameof(item));
         }
+    }
+
+    public ITargetBlock<LsifItem> BuildDataFlowBlock()
+    {
+        return new ActionBlock<LsifItem>(AddLsifItem);
     }
 
     public async Task SaveDotAsync(string dotFile = "lsif.dot")
