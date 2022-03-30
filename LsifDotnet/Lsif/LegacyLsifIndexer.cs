@@ -230,11 +230,17 @@ public class LegacyLsifIndexer
     /// </summary>
     internal const string NullabilityAnalysis = nameof(NullabilityAnalysis);
 
-    private static async Task<List<string>> GenerateHoverContent(QuickInfoService quickInfoService, Document document,
+    private async Task<List<string>> GenerateHoverContent(QuickInfoService quickInfoService, Document document,
         SyntaxToken token)
     {
         var quickInfo = await quickInfoService.GetQuickInfoAsync(document, token.SpanStart);
-        Debug.Assert(quickInfo != null, nameof(quickInfo) + " != null");
+
+        if (quickInfo == null)
+        {
+            Logger.LogWarning("No quick info found for {token.Value} at {token.GetLocation()}", token.Value,
+                token.GetLocation());
+            return new List<string>();
+        }
 
         var contents = new List<string>();
 

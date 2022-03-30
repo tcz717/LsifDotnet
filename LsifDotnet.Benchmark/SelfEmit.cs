@@ -56,7 +56,7 @@ public class SelfEmit
         const string fileName =
             $@"F:\Code\Science\LsifDotnet\LsifDotnet.Benchmark\bin\Release\test\{nameof(AsyncEnumerable)}.lsif";
         await IndexHandler.Process(_host!, SolutionFileInfo, new FileInfo(fileName),
-            CultureInfo.CurrentUICulture, false, false, true, true, 4, 0);
+            CultureInfo.CurrentUICulture, false, false, true, 4, 0);
     }
 
     [Benchmark]

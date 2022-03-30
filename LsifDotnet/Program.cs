@@ -48,11 +48,8 @@ class Program
         var quietOption = new Option<bool>("--quiet", "Be more quiet");
         quietOption.AddAlias("-q");
 
-        var legacyOption = new Option<bool>("--legacy", "Use the legacy indexer, relative slow but need less memory");
-        legacyOption.AddAlias("-l");
-
-        var parallelismOption = new Option<uint>("--parallelism", () => 4,
-            "How many hover content generation tasks can be handled at the same time.");
+        var parallelismOption = new Option<uint>("--parallelism",
+            "How many hover content generation tasks can be handled at the same time. When unset or set to 0, use legacy indexer, relative slow but need less memory.");
         parallelismOption.AddAlias("-p");
 
         var startIndexOption = new Option<uint>("--index",
@@ -69,7 +66,6 @@ class Program
             svgOption,
             cultureOption,
             quietOption,
-            legacyOption,
             parallelismOption,
             startIndexOption
         };

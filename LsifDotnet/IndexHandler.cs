@@ -20,7 +20,7 @@ namespace LsifDotnet;
 public class IndexHandler
 {
     public static async Task Process(IHost host, FileInfo? solutionFile, FileInfo output, CultureInfo culture, bool dot,
-        bool svg, bool quiet, bool legacy, uint parallelism, uint index)
+        bool svg, bool quiet, uint parallelism, uint index)
     {
         var logger = host.Services.GetRequiredService<ILogger<IndexHandler>>();
         ConfigLoggingLevel(host, quiet);
@@ -33,7 +33,7 @@ public class IndexHandler
         var defaultCulture = CultureInfo.CurrentUICulture;
         CultureInfo.CurrentUICulture = culture;
 
-        if (legacy)
+        if (parallelism is  0)
             await LegacyLsifIndex(host, logger, output, dot, svg);
         else
             await DataFlowLsifIndex(host, logger, output, dot, svg, parallelism, index);

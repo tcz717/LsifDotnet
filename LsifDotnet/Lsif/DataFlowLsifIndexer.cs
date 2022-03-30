@@ -21,7 +21,7 @@ public class DataFlowLsifIndexer
     private int _initId;
 
     public DataFlowLsifIndexer(Workspace workspace, IdentifierCollectorFactory identifierCollectorFactory,
-        ILogger<LegacyLsifIndexer> logger)
+        ILogger<DataFlowLsifIndexer> logger)
     {
         Workspace = workspace;
         IdentifierCollectorFactory = identifierCollectorFactory;
@@ -30,7 +30,7 @@ public class DataFlowLsifIndexer
 
     public Workspace Workspace { get; }
     public IdentifierCollectorFactory IdentifierCollectorFactory { get; }
-    protected ILogger<LegacyLsifIndexer> Logger { get; }
+    protected ILogger<DataFlowLsifIndexer> Logger { get; }
 
     public int EmittedItem => _emittedItem - _initId;
 
@@ -214,7 +214,14 @@ public class DataFlowLsifIndexer
         }
     }
 
-
+    /// <summary>
+    /// Build a block that emits a single Lsif item for async enumerable of <see cref="T2"/>
+    /// </summary>
+    /// <typeparam name="T1">The transform parameter type</typeparam>
+    /// <typeparam name="T2">The async output Type</typeparam>
+    /// <param name="transform">The async transform</param>
+    /// <param name="executionDataflowBlockOptions">The options</param>
+    /// <returns></returns>
     public static IPropagatorBlock<T1, T2> TransformAsyncEnumerable<T1, T2>(Func<T1, IAsyncEnumerable<T2>> transform,
         ExecutionDataflowBlockOptions? executionDataflowBlockOptions = null)
     {
@@ -296,11 +303,15 @@ public class DataFlowLsifIndexer
     /// </summary>
     internal const string NullabilityAnalysis = nameof(NullabilityAnalysis);
 
-    private static async Task<List<string>> GenerateHoverContent(QuickInfoService quickInfoService, Document document,
+    private async Task<List<string>> GenerateHoverContent(QuickInfoService quickInfoService, Document document,
         int position)
     {
         var quickInfo = await quickInfoService.GetQuickInfoAsync(document, position);
-        Debug.Assert(quickInfo != null, nameof(quickInfo) + " != null");
+        if (quickInfo == null)
+        {
+            Logger.LogWarning("No quick info found at {position}", position);
+            return new List<string>();
+        }
 
         var contents = new List<string>();
 
