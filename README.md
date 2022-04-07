@@ -38,12 +38,19 @@ Arguments:
   <SolutionFile>  The solution to be indexed. Default is the only solution file in the current folder.
 
 Options:
-  --output <output>    The lsif dump output file. [default: dump.lsif]
-  --dot                Dump graphviz dot file.
-  --svg                Dump graph svg file.
-  --culture <culture>  The culture used to show hover info. [default: en-US]
-  --version            Show version information
-  -?, -h, --help       Show help and usage information
+  -o, --output <output>                The lsif dump output file. [default: dump.lsif]
+  -d, --dot                            Dump graphviz dot file.
+  -s, --svg                            Dump graph svg file. (by quickchart.io/graphviz API)
+  -c, --culture <culture>              The culture used to show hover info. [default: zh-CN]
+  -q, --quiet                          Be more quiet
+  -p, --parallelism <parallelism>      How many hover content generation tasks can be handled at the same time. When
+                                       unset or set to 0, use legacy indexer, relative slow but need less memory.
+  -i, --index <index>                  The start index of lsif items. Use a different file when concatenating other
+                                       lsif files.
+  -e, --excludedFiles <excludedFiles>  Absolute paths of the files to be excluded in the output,this can be either a
+                                       source code file or a project file
+  --version                            Show version information
+  -?, -h, --help                       Show help and usage information
 
 ```
 

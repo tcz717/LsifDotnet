@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileSystemGlobbing;
 using Xunit;
 
 namespace LsifDotnet.Tests
@@ -29,6 +30,7 @@ namespace LsifDotnet.Tests
             _serviceProvider = new ServiceCollection()
                 .AddLogging()
                 .AddTransient<IdentifierCollectorFactory>()
+                .AddSingleton<Matcher>()
                 .AddTransient<LegacyLsifIndexer>()
                 .AddSingleton(_adhocWorkspace as Workspace)
                 .BuildServiceProvider();
@@ -38,7 +40,7 @@ namespace LsifDotnet.Tests
         {
             return _adhocWorkspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(),
                 VersionStamp.Create(),
-                projectName, projectName, "C#", metadataReferences: new[]
+                projectName, projectName, "C#", "F:/dummyProjectPath.csproj", metadataReferences: new[]
                 {
                     MetadataReference.CreateFromFile(typeof(object).Assembly.Location)
                 }));
@@ -55,8 +57,14 @@ using System.Reflection;
 
             var code2 = SourceText.From(@"class Test : global::System.object {} // Adding extra global symbol");
 
-            _adhocWorkspace.AddDocument(_project.Id, $"{nameof(GlobalKeywordTest)}.1.cs", code1);
-            _adhocWorkspace.AddDocument(AddProject("SecondProject").Id, $"{nameof(GlobalKeywordTest)}.2.cs", code2);
+            var documentId1 = DocumentId.CreateNewId(_project.Id);
+            var documentId2 = DocumentId.CreateNewId(AddProject("SecondProject").Id);
+
+            TextLoader loader1 = TextLoader.From(TextAndVersion.Create(code1, VersionStamp.Create()));
+            TextLoader loader2 = TextLoader.From(TextAndVersion.Create(code2, VersionStamp.Create()));
+
+            _adhocWorkspace.AddDocument(DocumentInfo.Create(documentId1, $"{nameof(GlobalKeywordTest)}.1.cs", null, SourceCodeKind.Regular, loader1, "F:/dummy/dummyDocumentFilePath.cs"));
+            _adhocWorkspace.AddDocument(DocumentInfo.Create(documentId2, $"{nameof(GlobalKeywordTest)}.2.cs", null, SourceCodeKind.Regular, loader2, "F:/dummy/dummyDocumentFilePath.cs"));
 
             var indexer = _serviceProvider.GetRequiredService<LegacyLsifIndexer>();
 

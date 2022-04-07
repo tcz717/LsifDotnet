@@ -11,6 +11,7 @@ using LsifDotnet.Roslyn;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.QuickInfo;
+using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Logging;
 
 namespace LsifDotnet.Lsif;
@@ -21,16 +22,18 @@ public class DataFlowLsifIndexer
     private int _initId;
 
     public DataFlowLsifIndexer(Workspace workspace, IdentifierCollectorFactory identifierCollectorFactory,
-        ILogger<DataFlowLsifIndexer> logger)
+        ILogger<DataFlowLsifIndexer> logger, Matcher matcher)
     {
         Workspace = workspace;
         IdentifierCollectorFactory = identifierCollectorFactory;
         Logger = logger;
+        Matcher = matcher;
     }
 
     public Workspace Workspace { get; }
     public IdentifierCollectorFactory IdentifierCollectorFactory { get; }
     protected ILogger<DataFlowLsifIndexer> Logger { get; }
+    protected Matcher Matcher { get; }
 
     public int EmittedItem => _emittedItem - _initId;
 
@@ -94,6 +97,12 @@ public class DataFlowLsifIndexer
         var toDocuments = new TransformManyBlock<IndexedProject, IndexedDocument>(async indexedProject =>
         {
             var (projectId, project) = indexedProject;
+
+            if (Matcher.Match(project.FilePath).HasMatches)
+            {
+                Logger.LogInformation("project {project} ignored", project.FilePath);
+                return ImmutableArray<IndexedDocument>.Empty;
+            }
             Logger.LogInformation("Emitting {language} project {project}", project.Language, project.FilePath);
 
             await lsifItemOutput.SendAsync(new ProjectVertex(projectId, ToAbsoluteUri(project.FilePath), project.Name));
@@ -105,8 +114,14 @@ public class DataFlowLsifIndexer
             }
 
             var documents = new List<IndexedDocument>();
+
             foreach (var document in project.Documents)
             {
+                if (Matcher.Match(document.FilePath).HasMatches)
+                {
+                    Logger.LogInformation("Regular document {FilePath} ignored", document.FilePath);
+                    continue;
+                }
                 var documentId = NextId();
                 documents.Add(new IndexedDocument(documentId, document));
                 Trace.Assert(
