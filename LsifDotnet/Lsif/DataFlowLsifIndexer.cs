@@ -225,10 +225,11 @@ public class DataFlowLsifIndexer
                 {
                     lastId = item.Id;
                     source.Post(item);
-                    return;
                 }
-
-                queue.Enqueue(item, item.Id);
+                else
+                {
+                    queue.Enqueue(item, item.Id);
+                }
 
                 while (queue.TryPeek(out _, out var id) && id == lastId + 1)
                 {
