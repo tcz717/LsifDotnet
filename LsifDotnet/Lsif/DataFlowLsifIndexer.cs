@@ -80,7 +80,7 @@ public class DataFlowLsifIndexer
 
         var solutionSource = new BufferBlock<Solution>();
 
-        var lsifItemOutput = new BufferBlock<LsifItem>();
+        var lsifItemOutput = ReorderLsifItems();
 
         var toProjects = new TransformManyBlock<Solution, IndexedProject>(async solution =>
         {
@@ -212,6 +212,45 @@ public class DataFlowLsifIndexer
             Logger.LogInformation("Emitted {count} Lsif item(s) in {document}", EmittedItem - previousEmittedItem,
                 document.FilePath);
         }
+    }
+
+    private IPropagatorBlock<LsifItem, LsifItem> ReorderLsifItems()
+    {
+        int? lastId = null;
+        var queue = new PriorityQueue<LsifItem, int>();
+        var source = new BufferBlock<LsifItem>();
+        var target = new ActionBlock<LsifItem>(item =>
+            {
+                if (!lastId.HasValue || item.Id == lastId + 1)
+                {
+                    lastId = item.Id;
+                    source.Post(item);
+                }
+                else
+                {
+                    queue.Enqueue(item, item.Id);
+                }
+
+                while (queue.TryPeek(out _, out var id) && id == lastId + 1)
+                {
+                    lastId = id;
+                    source.Post(queue.Dequeue());
+                }
+            });
+        target.Completion.ContinueWith(_ =>
+            {
+                while (queue.TryDequeue(out var item, out var id))
+                {
+                    if (id != lastId + 1)
+                    {
+                        Logger.LogError("Lsif item {id} is out of order when complete, expect {expect}", id, lastId + 1);
+                    }
+                    lastId = id;
+                    source.Post(item);
+                }
+                source.Complete();
+            });
+        return DataflowBlock.Encapsulate(target, source);
     }
 
     /// <summary>
