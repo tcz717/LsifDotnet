@@ -31,6 +31,10 @@ jobs:
       run: dotnet test --no-build --verbosity normal
     - name: Publish
       run: dotnet publish -c release -o publish/${{ matrix.os }} --os ${{ matrix.os }} -p:Version=${{ steps.get_version.outputs.version-without-v }} --verbosity normal
+    - name: Pack
+      run: dotnet pack -c release -p:Version=${{ steps.get_version.outputs.version-without-v }} --verbosity normal LsifDotnet/LsifDotnet.csproj
+    - name: Publish Nuget
+      run: dotnet nuget push LsifDotnet\nupkg\ --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json 
     - name: Zip Release
       # You may pin to the exact commit or the version.
       # uses: TheDoctor0/zip-release@591e9b128012d3328db6043d0d0266c3ac27f9b5
