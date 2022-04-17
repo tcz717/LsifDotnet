@@ -14,6 +14,10 @@
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+
+    <PackAsTool>True</PackAsTool>
+    <ToolCommandName>dotnet-lsif</ToolCommandName>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
