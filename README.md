@@ -1,4 +1,4 @@
-# LsifDotnet [![.NET 6.0](https://github.com/tcz717/LsifDotnet/actions/workflows/dotnet.yml/badge.svg)](https://github.com/tcz717/LsifDotnet/actions/workflows/dotnet.yml)
+# LsifDotnet [![.NET 6.0](https://github.com/tcz717/LsifDotnet/actions/workflows/dotnet.yml/badge.svg)](https://github.com/tcz717/LsifDotnet/actions/workflows/dotnet.yml)[![NuGet Status](http://nugetstatus.com/LsifDotnet.png)](http://nugetstatus.com/packages/LsifDotnet)
 
 Visit https://lsif.dev/ to learn about LSIF.
 
@@ -17,6 +17,12 @@ Implmented LSIF data:
 ### Requirement
 
 Installed [.net 6.0](https://dotnet.microsoft.com/en-us/download/dotnet/6.0)
+
+## Install via nuget
+```powershell
+dotnet tool install --global LsifDotnet 
+dotnet lsif
+```
 
 ### Usage
 
