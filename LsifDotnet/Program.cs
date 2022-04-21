@@ -13,6 +13,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -34,6 +35,9 @@ class Program
         var outputOption = new Option<FileInfo>("--output", () => new FileInfo("dump.lsif"),
             "The lsif dump output file.");
         outputOption.AddAlias("-o");
+
+        var excludedFilesOption = new Option<string[]>("--excludedFiles", "Absolute paths of the files to be excluded in the output,this can be either a source code file or a project file");
+        excludedFilesOption.AddAlias("-e");
 
         var dotOption = new Option<bool>("--dot", "Dump graphviz dot file.");
         dotOption.AddAlias("-d");
@@ -67,7 +71,8 @@ class Program
             cultureOption,
             quietOption,
             parallelismOption,
-            startIndexOption
+            startIndexOption,
+            excludedFilesOption
         };
 
         rootCommand.Handler = CommandHandler.Create(IndexHandler.Process);
@@ -84,6 +89,7 @@ class Program
 
         host.ConfigureServices((_, collection) => collection.AddSingleton(_ => CreateWorkspace())
             .AddSingleton<IdentifierCollectorFactory>()
+            .AddSingleton<Matcher>()
             .AddTransient<LegacyLsifIndexer>()
             .AddTransient<DataFlowLsifIndexer>()
             .AddTransient(services => (Workspace)services.GetRequiredService<MSBuildWorkspace>()));

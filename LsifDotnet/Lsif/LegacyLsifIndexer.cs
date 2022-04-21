@@ -9,6 +9,7 @@ using LsifDotnet.Roslyn;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.QuickInfo;
+using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Logging;
 
 namespace LsifDotnet.Lsif;
@@ -21,16 +22,20 @@ public class LegacyLsifIndexer
     private int _emittedItem;
 
     public LegacyLsifIndexer(Workspace workspace, IdentifierCollectorFactory identifierCollectorFactory,
-        ILogger<LegacyLsifIndexer> logger)
+        ILogger<LegacyLsifIndexer> logger, Matcher matcher)
     {
         Workspace = workspace;
         IdentifierCollectorFactory = identifierCollectorFactory;
         Logger = logger;
+        Matcher = matcher;
     }
 
     public Workspace Workspace { get; }
     public IdentifierCollectorFactory IdentifierCollectorFactory { get; }
+
     protected ILogger<LegacyLsifIndexer> Logger { get; }
+
+    protected Matcher Matcher { get; }
 
     public int EmittedItem => _emittedItem;
 
@@ -73,11 +78,16 @@ public class LegacyLsifIndexer
     {
         var solution = Workspace.CurrentSolution;
         Logger.LogInformation("Emitting solution {solution}", solution.FilePath);
-        
+
         yield return new MetaDataVertex(NextId(), ToAbsoluteUri(Path.GetDirectoryName(solution.FilePath)));
 
         foreach (var project in solution.Projects)
         {
+            if (Matcher.Match(project.FilePath).HasMatches)
+            {
+                Logger.LogInformation("project {project} ignored", project.FilePath);
+                continue;
+            }
             Logger.LogInformation("Emitting {language} project {project}", project.Language, project.FilePath);
 
             var projectId = NextId();
@@ -92,6 +102,11 @@ public class LegacyLsifIndexer
 
             foreach (var document in project.Documents)
             {
+                if (Matcher.Match(document.FilePath).HasMatches)
+                {
+                    Logger.LogInformation("Regular document {FilePath} ignored", document.FilePath);
+                    continue;
+                }
                 var documentId = NextId();
                 documents.Add(documentId);
                 await foreach (var item in EmitDocument(documentId, document)) yield return item;

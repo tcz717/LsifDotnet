@@ -12,6 +12,7 @@ using LsifDotnet.Lsif;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -20,15 +21,19 @@ namespace LsifDotnet;
 public class IndexHandler
 {
     public static async Task Process(IHost host, FileInfo? solutionFile, FileInfo output, CultureInfo culture, bool dot,
-        bool svg, bool quiet, uint parallelism, uint index)
+        bool svg, bool quiet, uint parallelism, uint index, string[] excludedFiles)
     {
         var logger = host.Services.GetRequiredService<ILogger<IndexHandler>>();
         ConfigLoggingLevel(host, quiet);
         PrintDescription(logger);
 
+
         var solutionFilePath = solutionFile?.FullName ?? FindSolutionFile();
 
         await host.Services.GetRequiredService<MSBuildWorkspace>().OpenSolutionAsync(solutionFilePath);
+        var matcher = host.Services.GetRequiredService<Matcher>();
+        matcher.AddIncludePatterns(excludedFiles);
+       
 
         var defaultCulture = CultureInfo.CurrentUICulture;
         CultureInfo.CurrentUICulture = culture;
