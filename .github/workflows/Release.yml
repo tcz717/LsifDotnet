@@ -65,4 +65,4 @@ jobs:
     - name: Pack
       run: dotnet pack -c release -p:Version=${{ steps.get_version.outputs.version-without-v }} --verbosity normal LsifDotnet/LsifDotnet.csproj
     - name: Publish Nuget
-      run: dotnet nuget push LsifDotnet\nupkg\ --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json 
+      run: dotnet nuget push LsifDotnet/nupkg/ --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json 
